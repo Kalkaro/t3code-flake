@@ -12,7 +12,8 @@ changes=()
 
 update_channel() {
   channel=$1
-  release=$2
+  prefix=$2
+  release=$3
 
   if ! version=$(jq -er '.tag_name | ltrimstr("v")' <<<"$release"); then
     echo "No $channel release found" >&2
@@ -21,7 +22,7 @@ update_channel() {
   echo "$channel: $version"
 
   for system in "${!assets[@]}"; do
-    name="T3-Code-$version-${assets[$system]}"
+    name="$prefix-${assets[$system]}"
     filter='.assets[] | select(.name == $name and .digest != null) | {version: $version, url: .browser_download_url, hash: .digest}'
     if ! source=$(jq -ec --arg name "$name" --arg version "$version" "$filter" <<<"$release"); then
       if jq -e 'now - (.published_at | fromdateiso8601) < 3600' <<<"$release" >/dev/null; then
@@ -47,8 +48,8 @@ cd "$(dirname "$0")/.."
 stable=$(gh api "repos/$repo/releases/latest")
 nightly=$(gh api "repos/$repo/releases?per_page=30" --jq 'first(.[] | select(.prerelease and (.tag_name | contains("-nightly."))))')
 
-update_channel stable "$stable"
-update_channel nightly "$nightly"
+update_channel stable T3-Code "$stable"
+update_channel nightly T3-Code-Nightly "$nightly"
 
 if [ ${#changes[@]} -eq 0 ]; then
   echo "Up to date"
