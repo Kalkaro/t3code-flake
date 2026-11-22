@@ -2,36 +2,58 @@ name: Update T3 Code
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
+permissions:
+  contents: read
+concurrency:
+  group: update-${{ github.ref }}
 jobs:
-  update-t3code:
-    name: Update T3 Code
+  update:
+    name: Find new releases
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+    timeout-minutes: 5
+    outputs:
+      message: ${{ steps.update.outputs.commit_message }}
+      sources: ${{ steps.sources.outputs.sources }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Update sources
         id: update
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/update.sh
-      - name: Create update pull request
-        id: create-pr
+      - name: Export sources
+        id: sources
         if: steps.update.outputs.commit_message != ''
-        uses: peter-evans/create-pull-request@v8
-        with:
-          commit-message: "${{ steps.update.outputs.commit_message }}"
-          title: "${{ steps.update.outputs.commit_message }}"
-          body: "Automated T3 Code release update."
-          branch: automated/t3code-update
-          delete-branch: true
-          add-paths: sources.json
-      - name: Enable auto-merge
-        if: steps.create-pr.outputs.pull-request-url != ''
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: echo "sources=$(jq -c . sources.json)" >>"$GITHUB_OUTPUT"
+  check:
+    name: Check update
+    needs: update
+    if: needs.update.outputs.message != ''
+    uses: ./.github/workflows/check.yaml
+    with:
+      sources: ${{ needs.update.outputs.sources }}
+  # The only job with write access. It never builds or runs T3 Code.
+  publish:
+    name: Publish update
+    needs: [update, check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Commit and push
         env:
-          PR_URL: ${{ steps.create-pr.outputs.pull-request-url }}
-          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ needs.update.outputs.message }}
+          SOURCES: ${{ needs.update.outputs.sources }}
+        run: |
+          jq . <<<"$SOURCES" >sources.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "$MESSAGE" -- sources.json
+          git push origin "HEAD:$GITHUB_REF_NAME"
