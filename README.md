@@ -2,6 +2,8 @@
 
 A Nix flake for [T3 Code](https://t3.codes/), a GUI and server for running coding agents. It packages the official Linux AppImage and includes a NixOS module for running the server as a systemd service.
 
+This is an independent fork of [ominit/t3code-flake](https://github.com/ominit/t3code-flake). It does not pull changes from it.
+
 Only x86_64-linux is supported.
 
 ## Packages
@@ -17,9 +19,9 @@ If `NIXOS_OZONE_WL` is set and you're in a Wayland session, the `t3code` desktop
 To try it without installing:
 
 ```sh
-nix run github:ominit/t3code-flake
-nix run github:ominit/t3code-flake#t3code-nightly
-nix shell github:ominit/t3code-flake --command t3 serve
+nix run github:Kalkaro/t3code-flake
+nix run github:Kalkaro/t3code-flake#t3code-nightly
+nix shell github:Kalkaro/t3code-flake --command t3 serve
 ```
 
 ## Installation
@@ -28,7 +30,7 @@ Add the flake to your inputs:
 
 ```nix
 t3code = {
-  url = "github:ominit/t3code-flake";
+  url = "github:Kalkaro/t3code-flake";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
@@ -123,7 +125,9 @@ The service sets `HOME` to `dataDir`. If the agents should use your normal git a
 
 ## Updates
 
-A scheduled GitHub Action checks for new stable and nightly T3 Code releases every hour. When it finds one, it opens a pull request that updates `sources.json` and merges automatically. To update locally, run `.github/update.sh`, which needs `gh` and `jq`. Run `nix flake update t3code` in your own flake to pick up the new version.
+A scheduled GitHub Action checks for new stable and nightly T3 Code releases every hour. When it finds one, it runs `nix flake check` on the new version and only commits `sources.json` to `main` if that passes. To update locally, run `.github/update.sh`, which needs `gh` and `jq`. Run `nix flake update t3code` in your own flake to pick up the new version.
+
+`flake.lock` is not updated automatically. Run `nix flake update` here to bump it.
 
 ## License
 
